@@ -96,3 +96,12 @@ unreal.AudioSlicerLibrary.export_slices(sound, slices, options)
 ## Support
 
 Bugs and feature requests: [GitHub issues](https://github.com/ITemre/AudioSlicer/issues)
+
+## License
+
+The source in this repository is released under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). You can use, change and share it for anything
+that isn't commercial: personal projects, learning, game jams, research, hobby work.
+
+For commercial projects, get Audio Slicer on Fab. Copies bought or downloaded there are covered by
+the Fab license instead of the one in this repository.
