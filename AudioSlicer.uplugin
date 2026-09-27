@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0.0",
+	"FriendlyName": "Audio Slicer",
+	"Description": "Cut a Sound Wave into separate assets right inside the editor. Mark the parts on the waveform or let silence detection find them, then export everything in one go.",
+	"Category": "Audio",
+	"CreatedBy": "Emre Erdogan",
+	"CreatedByURL": "https://github.com/ITemre",
+	"DocsURL": "https://github.com/ITemre/AudioSlicer#readme",
+	"MarketplaceURL": "",
+	"SupportURL": "https://github.com/ITemre/AudioSlicer/issues",
+	"EngineVersion": "5.8.0",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "AudioSlicer",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
+		}
+	]
+}
