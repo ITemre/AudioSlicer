@@ -935,11 +935,11 @@ void SAudioSlicerWindow::SetSliceTime(int32 SliceIndex, bool bStart, float Time)
 	FAudioSliceRange& Slice = Session->Slices[SliceIndex];
 	if (bStart)
 	{
-		Slice.StartTime = FMath::Min(Time, Slice.EndTime - MinSliceLength);
+		Slice.StartTime = FMath::Clamp(Time, 0.f, FMath::Max(0.f, Slice.EndTime - MinSliceLength));
 	}
 	else
 	{
-		Slice.EndTime = FMath::Max(Time, Slice.StartTime + MinSliceLength);
+		Slice.EndTime = FMath::Clamp(Time, FMath::Min(GetDuration(), Slice.StartTime + MinSliceLength), GetDuration());
 	}
 
 	const int32 NewIndex = Session->SortSlices(SliceIndex);
@@ -1313,14 +1313,14 @@ FReply SAudioSlicerWindow::OnExport()
 
 	// Resolve the names here so the checks below see exactly what will be written
 	TArray<FAudioSliceRange> Slices = Session->Slices;
-	TSet<FString> UsedNames;
+	TSet<FName> UsedNames;
 	int32 NumExisting = 0;
 
 	for (int32 Index = 0; Index < Slices.Num(); ++Index)
 	{
 		Slices[Index].Name = AudioSlicer::GetSliceAssetName(Slices[Index], BaseName, Index + 1);
 
-		if (UsedNames.Contains(Slices[Index].Name))
+		if (UsedNames.Contains(FName(*Slices[Index].Name)))
 		{
 			AudioSlicerWindow::Notify(
 				FText::Format(LOCTEXT("DuplicateName", "Two slices would both be called {0}. Rename one of them."), FText::FromString(Slices[Index].Name)),
@@ -1328,7 +1328,7 @@ FReply SAudioSlicerWindow::OnExport()
 			SelectSlice(Index);
 			return FReply::Handled();
 		}
-		UsedNames.Add(Slices[Index].Name);
+		UsedNames.Add(FName(*Slices[Index].Name));
 
 		if (AudioSlicer::FindExistingAsset(OutputFolder, Slices[Index].Name).IsValid())
 		{

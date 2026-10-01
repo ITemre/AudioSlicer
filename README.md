@@ -15,8 +15,8 @@ slice becomes a regular Sound Wave asset next to the source or in a folder of yo
 - Slice list with editable names and exact start/end times
 - Cuts snap to zero crossings and get short fades, so they don't click
 - Sound class, submix, attenuation, concurrency and compression are taken over from the source
-- Existing assets are either updated in place (references stay intact) or left alone
-- Full undo/redo for every edit
+- Existing assets are either updated in place (references stay intact) or exported with unique names
+- Undo/redo for slice edits
 - Usable from Editor Utility Blueprints and Python as well
 
 ## Requirements
@@ -86,6 +86,10 @@ unreal.AudioSlicerLibrary.export_slices(sound, slices, options)
 ```
 
 ## Good to know
+
+- Export never overwrites the source. With overwrite enabled, repeated target names in a batch are skipped.
+- Non-finite time values are rejected. Finite ranges are clamped to the source duration.
+- Exported assets are not part of the slice-edit undo history.
 
 - Only imported Sound Waves can be sliced. Procedural sounds and Sound Cues can't.
 - Unreal keeps imported audio as 16-bit PCM internally, so that's what the slices contain,

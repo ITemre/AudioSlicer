@@ -18,6 +18,8 @@
 
 #define LOCTEXT_NAMESPACE "AudioSlicer"
 
+// Use the same bitwise finite check on all supported engine versions and platforms.
+
 bool FAudioSlicerPCM::Load(const USoundWave* SoundWave)
 {
 	Samples.Reset();
@@ -44,7 +46,7 @@ bool FAudioSlicerPCM::Load(const USoundWave* SoundWave)
 	Samples.SetNumUninitialized(RawBytes.Num() / int32(sizeof(int16)));
 	FMemory::Memcpy(Samples.GetData(), RawBytes.GetData(), Samples.Num() * sizeof(int16));
 
-	// A half frame at the end would shift the channels of every frame index after it
+	// Discard any incomplete trailing frame.
 	Samples.SetNum(GetNumFrames() * NumChannels);
 
 	return IsValid();
@@ -52,7 +54,12 @@ bool FAudioSlicerPCM::Load(const USoundWave* SoundWave)
 
 int32 FAudioSlicerPCM::TimeToFrame(float Seconds) const
 {
-	return FMath::Clamp(FMath::RoundToInt(Seconds * float(SampleRate)), 0, GetNumFrames());
+	if (!FGenericPlatformMath::IsFinite(Seconds) || SampleRate <= 0)
+	{
+		return 0;
+	}
+	const double Frame = FMath::Clamp(double(Seconds) * SampleRate, 0.0, double(GetNumFrames()));
+	return int32(FMath::RoundToInt64(Frame));
 }
 
 float FAudioSlicerPCM::FrameToTime(int32 Frame) const
@@ -62,7 +69,12 @@ float FAudioSlicerPCM::FrameToTime(int32 Frame) const
 
 int32 FAudioSlicerPCM::MsToFrames(float Milliseconds) const
 {
-	return FMath::Max(0, FMath::RoundToInt(Milliseconds * 0.001f * float(SampleRate)));
+	if (!FGenericPlatformMath::IsFinite(Milliseconds) || SampleRate <= 0)
+	{
+		return 0;
+	}
+	const double Frames = FMath::Clamp(double(Milliseconds) * 0.001 * SampleRate, 0.0, double(MAX_int32));
+	return int32(FMath::RoundToInt64(Frames));
 }
 
 int32 FAudioSlicerPCM::FindZeroCrossing(int32 Frame, int32 SearchRadius) const
@@ -112,7 +124,9 @@ int32 FAudioSlicerPCM::FindZeroCrossing(int32 Frame, int32 SearchRadius) const
 TArray<FAudioSliceRange> FAudioSlicerPCM::DetectSoundRegions(const FAudioSilenceDetectionSettings& Settings) const
 {
 	TArray<FAudioSliceRange> Regions;
-	if (!IsValid())
+	if (!IsValid() || !FGenericPlatformMath::IsFinite(Settings.ThresholdDb)
+		|| !FGenericPlatformMath::IsFinite(Settings.MinSilenceMs) || !FGenericPlatformMath::IsFinite(Settings.MinSliceMs)
+		|| !FGenericPlatformMath::IsFinite(Settings.PaddingMs))
 	{
 		return Regions;
 	}
@@ -181,7 +195,11 @@ TArray<FAudioSliceRange> FAudioSlicerPCM::DetectSoundRegions(const FAudioSilence
 
 		// Padding must not reach back into the slice before
 		const int32 Start = FMath::Max(Range.Key - PaddingFrames, PreviousEnd);
-		const int32 End = FMath::Min(Range.Value + PaddingFrames, NumFrames);
+		const int32 End = int32(FMath::Min(int64(Range.Value) + PaddingFrames, int64(NumFrames)));
+		if (End <= Start)
+		{
+			continue;
+		}
 
 		FAudioSliceRange& Region = Regions.AddDefaulted_GetRef();
 		Region.StartTime = FrameToTime(Start);
@@ -321,6 +339,11 @@ namespace AudioSlicer
 		{
 			return Exported;
 		}
+		if (!FGenericPlatformMath::IsFinite(Options.FadeInMs) || !FGenericPlatformMath::IsFinite(Options.FadeOutMs))
+		{
+			UE_LOG(LogAudioSlicer, Warning, TEXT("Can't export with non-finite fade durations."));
+			return Exported;
+		}
 
 		FString Folder = Options.DestinationPath.TrimStartAndEnd();
 		if (Folder.IsEmpty() && Source)
@@ -343,6 +366,7 @@ namespace AudioSlicer
 		const int32 FadeOutFrames = PCM.MsToFrames(Options.FadeOutMs);
 
 		TArray<UPackage*> Packages;
+		TSet<FName> WrittenPackages;
 
 		FScopedSlowTask SlowTask(float(Slices.Num()), LOCTEXT("ExportingSlices", "Exporting slices..."));
 		SlowTask.MakeDialogDelayed(0.5f, true);
@@ -358,6 +382,18 @@ namespace AudioSlicer
 			const FAudioSliceRange& Slice = Slices[Index];
 			FString AssetName = GetSliceAssetName(Slice, BaseName, Index + 1);
 			FString PackageName = Folder / AssetName;
+			if (AssetName.IsEmpty() || !FPackageName::IsValidLongPackageName(PackageName)
+				|| !FGenericPlatformMath::IsFinite(Slice.StartTime) || !FGenericPlatformMath::IsFinite(Slice.EndTime))
+			{
+				UE_LOG(LogAudioSlicer, Warning, TEXT("Skipped slice %d, invalid asset name or non-finite time."), Index + 1);
+				continue;
+			}
+			if (Options.bOverwriteExisting && ((Source && FName(*PackageName) == Source->GetPackage()->GetFName())
+				|| WrittenPackages.Contains(FName(*PackageName))))
+			{
+				UE_LOG(LogAudioSlicer, Warning, TEXT("Skipped %s: cannot overwrite the source or another slice from this export. Choose a different name."), *AssetName);
+				continue;
+			}
 
 			int32 StartFrame = PCM.TimeToFrame(FMath::Min(Slice.StartTime, Slice.EndTime));
 			int32 EndFrame = PCM.TimeToFrame(FMath::Max(Slice.StartTime, Slice.EndTime));
@@ -408,11 +444,15 @@ namespace AudioSlicer
 			Wave->MarkPackageDirty();
 			Packages.Add(Wave->GetPackage());
 			Exported.Add(Wave);
+			WrittenPackages.Add(FName(*PackageName));
 		}
 
 		if (Options.bSaveAssets && Packages.Num() > 0)
 		{
-			UEditorLoadingAndSavingUtils::SavePackages(Packages, true);
+			if (!UEditorLoadingAndSavingUtils::SavePackages(Packages, true))
+			{
+				UE_LOG(LogAudioSlicer, Error, TEXT("Some exported slices could not be saved. Save the remaining dirty assets before closing the editor."));
+			}
 		}
 
 		UE_LOG(LogAudioSlicer, Log, TEXT("Exported %d of %d slices to %s"), Exported.Num(), Slices.Num(), *Folder);

@@ -662,7 +662,7 @@ FReply SAudioSlicerWaveform::OnMouseMove(const FGeometry& MyGeometry, const FPoi
 		if (SessionPtr->Slices.IsValidIndex(DragSlice))
 		{
 			FAudioSliceRange& Slice = SessionPtr->Slices[DragSlice];
-			Slice.StartTime = FMath::Min(Time, Slice.EndTime - MinSliceLength);
+			Slice.StartTime = FMath::Clamp(Time, 0.f, FMath::Max(0.f, Slice.EndTime - MinSliceLength));
 		}
 		break;
 
@@ -670,7 +670,7 @@ FReply SAudioSlicerWaveform::OnMouseMove(const FGeometry& MyGeometry, const FPoi
 		if (SessionPtr->Slices.IsValidIndex(DragSlice))
 		{
 			FAudioSliceRange& Slice = SessionPtr->Slices[DragSlice];
-			Slice.EndTime = FMath::Max(Time, Slice.StartTime + MinSliceLength);
+			Slice.EndTime = FMath::Clamp(Time, FMath::Min(GetTotalDuration(), Slice.StartTime + MinSliceLength), GetTotalDuration());
 		}
 		break;
 

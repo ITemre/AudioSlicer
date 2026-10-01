@@ -53,6 +53,7 @@ struct AUDIOSLICER_API FAudioSliceExportOptions
 	/**
 	 * If a sound with the same name exists, update it in place (references to it stay intact).
 	 * Otherwise the new slice gets a unique name instead.
+	 * The source and slices already written in this batch are never overwritten.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio Slicer")
 	bool bOverwriteExisting = false;
