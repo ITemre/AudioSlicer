@@ -18,6 +18,12 @@ class USoundWave;
 struct FAssetData;
 struct FAudioSlicerPCM;
 
+/**
+ * Coordinates the editing session and child widgets.
+ * Implementation is grouped by responsibility: Window (lifecycle/session),
+ * Toolbar (controls/options), Slices (list/editing), Playback and Export.
+ * These files share this class so callbacks and undo keep one session owner.
+ */
 class SAudioSlicerWindow : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
 {
 public:
